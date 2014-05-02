@@ -13,6 +13,7 @@ import ij.gui.Roi;
 import ij.gui.GenericDialog;
 import ij.measure.Calibration;
 import ij.plugin.PlugIn;
+import ij.plugin.Straightener;
 import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
 import ij.IJ;
@@ -25,7 +26,7 @@ import ij.Prefs;
 
 public class KymoResliceWide_ implements PlugIn 
 {
-	private static String version = "ver.0.1";
+	private static String version = "ver.0.2";
 	private ImagePlus imp;	
 	private static boolean rotate;	
 	private static final String[] reslicetype = {"Maximum", "Average",};
@@ -36,8 +37,12 @@ public class KymoResliceWide_ implements PlugIn
 	private double inputZSpacing = 1.0;
 	private double outputZSpacing = 1.0;
 	private boolean debugroigen=true;
+	private float fStrokeWidth;
+	Overlay SpotsPositions;
+	
 	
 	Roi roi;
+	
 
 	// Variables used by getIrregularProfile and doIrregularSetup
 	private int n;
@@ -128,13 +133,17 @@ public class KymoResliceWide_ implements PlugIn
 					outputZSpacing = 1.0;
 		 //}
 		double zSpacing = inputZSpacing/imp.getCalibration().pixelWidth;
+		fStrokeWidth = roi.getStrokeWidth();
 		// if (roiType==Roi.LINE) {
 //				imp2 = resliceLine(imp);
 	//	 } else {// we assert roiType==Roi.POLYLINE || roiType==Roi.FREELINE
 				String status = imp.getStack().isVirtual()?"":null;
 				IJ.showStatus("Reslice...");
 				ImageProcessor ip2 = getSlice(imp, status);
-				imp2 = new ImagePlus("Reslice of "+imp.getShortTitle(), ip2);
+				if(nKymoType == 1)
+					imp2 = new ImagePlus("Reslice (AVRG) of "+imp.getShortTitle(), ip2);
+				else
+					imp2 = new ImagePlus("Reslice (MAX) of "+imp.getShortTitle(), ip2);
 		// }
 		 //if (nointerpolate) { // restore calibration
 		 		if (globalCalibration)
@@ -194,24 +203,73 @@ public class KymoResliceWide_ implements PlugIn
 		 ImageStack stack = imp.getStack();
 		 int stackSize = stack.getSize();
 		 ImageProcessor ip,ip2=null;
-		 float[] line = null;		 
+		 int nSliceInitialN;
+		 float[] line = null;
+		
 		//boolean vertical = x1==x2 && (roi==null||roiType==Roi.RECTANGLE);
 		//if (rotate) vertical = !vertical;
-		 for (int i=0; i<stackSize; i++) {
-				ip = stack.getProcessor(i+1);
-				if (roiType==Roi.POLYLINE || roiType==Roi.FREELINE)
-					line = getIrregularProfileWide(roi, ip);
-				else
-					line = getLine(ip);
-				if (rotate) {
-					if (i==0) ip2 = ip.createProcessor(stackSize, line.length);
-					putColumn(ip2, i, 0, line, line.length);
-				} else {
-					if (i==0) ip2 = ip.createProcessor(line.length, stackSize);
-					putRow(ip2, 0, i, line, line.length);
-				}
-				if (status!=null) IJ.showStatus("Slicing: "+status +i+"/"+stackSize);
+		 if((roiType==Roi.FREELINE && fStrokeWidth>1)||(roiType==Roi.POLYLINE && ((PolygonRoi)roi).isSplineFit()))
+		 {
+			 if(roiType==Roi.FREELINE && fStrokeWidth>1)
+			 {
+				 IJ.run(imp, "Fit Spline", "");
+				 roi = imp.getRoi();
+			 }
+			
+			 nSliceInitialN = imp.getCurrentSlice();			 			 			 
+			 for (int i=0; i<stackSize; i++) {
+				 imp.setSliceWithoutUpdate(i+1);
+				 ip = (new Straightener()).straightenLine(imp, (int)fStrokeWidth);
+				 line = getFreeHandProfileWide(ip);
+				 if (i==0) ip2 = imp.getChannelProcessor().createProcessor(line.length, stackSize);
+				 putRow(ip2, 0, i, line, line.length);
+
+				 if (status!=null) IJ.showStatus("Slicing: "+status +i+"/"+stackSize);
+				 IJ.showProgress(i, stackSize);
+			 
+			 }
+			 
+			 //put back the slice we've used
+			 imp.setSliceWithoutUpdate(nSliceInitialN);
+			 //correct the height of the kymograph
+			 int new_width = (int)roi.getLength();
+			 ip2.setInterpolationMethod(ij.process.ImageProcessor.BICUBIC);
+			 ip2=ip2.resize(new_width,ip2.getHeight(), true);
+			 
+			 //show overlay
+			 if(debugroigen)
+			 {
+				 SpotsPositions = imp.getOverlay();
+				 if(SpotsPositions==null)
+					 SpotsPositions = new Overlay();
+
+				 SpotsPositions.add(roi);
+ 			     imp.setOverlay(SpotsPositions);
+				 imp.updateAndRepaintWindow();
+				 imp.show();
+				 debugroigen=false;
+			 }
 		 }
+		 else
+		 {
+			 for (int i=0; i<stackSize; i++) {
+				 ip = stack.getProcessor(i+1);
+				 if (roiType==Roi.LINE)
+					 line = getLine(ip);
+				 else if	(roiType==Roi.POLYLINE || (roiType==Roi.FREELINE && fStrokeWidth<=1))					
+				  	 line = getIrregularProfileWide(ip);
+			//	 else
+				//	 line = getFreeHandProfileWide(ip);
+		
+				 if (i==0) ip2 = ip.createProcessor(line.length, stackSize);
+						putRow(ip2, 0, i, line, line.length);
+		
+				 if (status!=null) IJ.showStatus("Slicing: "+status +i+"/"+stackSize);
+				 IJ.showProgress(i, stackSize);
+			 
+			 }
+		 }
+		 
 		 Calibration cal = imp.getCalibration();
 		 double zSpacing = inputZSpacing/cal.pixelWidth;
 		 if (zSpacing!=1.0) {
@@ -221,6 +279,8 @@ public class KymoResliceWide_ implements PlugIn
 				else
 					ip2 = ip2.resize(line.length, (int)(stackSize*zSpacing));
 		 }
+		 if(rotate)
+			 ip2 = ip2.rotateLeft();
 		 return ip2;
 	}
 	
@@ -270,9 +330,8 @@ public class KymoResliceWide_ implements PlugIn
 		double rx = x1;
 		double ry = y1;		
 		for (int i=0; i<n; i++) {
-			 		if (notFloat)
-						data[i] = (float)ip.getInterpolatedPixel(rx, ry);
-					else if (rgb) {
+					
+					if (rgb) {
 						int rgbPixel = ((ColorProcessor)ip).getInterpolatedRGBPixel(rx, ry);
 						data[i] = Float.intBitsToFloat(rgbPixel&0xffffff);
 					} else
@@ -282,9 +341,10 @@ public class KymoResliceWide_ implements PlugIn
 					rx += xinc;
 					ry += yinc;
 		}
-		int widthline = Math.round(line.getStrokeWidth());	
 		
-		Overlay SpotsPositions;
+		int widthline = Math.round(fStrokeWidth);	
+		
+		//Overlay SpotsPositions;
 		SpotsPositions = imp.getOverlay();
 		if(SpotsPositions==null)
 		{
@@ -332,9 +392,7 @@ public class KymoResliceWide_ implements PlugIn
 				 {
 					 rx = interx[k]+dx*(nOffset-j);
 					 ry = intery[k]+dy*(nOffset-j);
-					 if (notFloat)
-						 lineprof2D[k][j] = (float)ip.getInterpolatedPixel(rx, ry);
-					 else if (rgb) {
+					 if (rgb) {
 							int rgbPixel = ((ColorProcessor)ip).getInterpolatedRGBPixel(rx, ry);
 							lineprof2D[k][j] = Float.intBitsToFloat(rgbPixel&0xffffff);
 					 } else
@@ -394,7 +452,7 @@ public class KymoResliceWide_ implements PlugIn
 		}
 	
 	}
-	float[] getIrregularProfileWide(Roi roi, ImageProcessor ip) {
+	float[] getIrregularProfileWide(ImageProcessor ip) {
 		
 
 		if (x==null)
@@ -420,9 +478,7 @@ public class KymoResliceWide_ implements PlugIn
 				for (int j=0; j<=n2; j++) {
 					index = (int)distance+j;
 					if (index<values.length) {
-						 if (notFloat)
-								values[index] = (float)ip.getInterpolatedPixel(rx, ry);
-						 else if (rgb) {
+						if (rgb) {
 								int rgbPixel = ((ColorProcessor)ip).getInterpolatedRGBPixel(rx, ry);
 								values[index] = Float.intBitsToFloat(rgbPixel&0xffffff);
 						 } else
@@ -437,7 +493,7 @@ public class KymoResliceWide_ implements PlugIn
 				leftOver = len2 - n2;
 		 }
 
-		 Overlay SpotsPositions;
+		 
 		 SpotsPositions = imp.getOverlay();
 		 if(SpotsPositions==null)
 		 {
@@ -445,7 +501,7 @@ public class KymoResliceWide_ implements PlugIn
 			 
 		 }
 
-		 int widthline = Math.round(roi.getStrokeWidth());		 
+		 int widthline = Math.round(fStrokeWidth);		 
 		 //ok, we got main line now
 		 if (widthline <=1)
 		 {
@@ -490,9 +546,7 @@ public class KymoResliceWide_ implements PlugIn
 			 {
 				 rx=interx[0]+deltax*(nOffset-j);
 				 ry=intery[0]+deltay*(nOffset-j);
-				 if (notFloat)
-					 lineprof2D[0][j] = (float)ip.getInterpolatedPixel(rx, ry);
-				 else if (rgb) {
+				 if (rgb) {
 						int rgbPixel = ((ColorProcessor)ip).getInterpolatedRGBPixel(rx, ry);
 						lineprof2D[0][j] = Float.intBitsToFloat(rgbPixel&0xffffff);
 				 } else
@@ -526,9 +580,7 @@ public class KymoResliceWide_ implements PlugIn
 				 {
 					 rx = interx[k]+deltax*(nOffset-j);
 					 ry = intery[k]+deltay*(nOffset-j);
-					 if (notFloat)
-						 lineprof2D[k][j] = (float)ip.getInterpolatedPixel(rx, ry);
-					 else if (rgb) {
+					 if (rgb) {
 							int rgbPixel = ((ColorProcessor)ip).getInterpolatedRGBPixel(rx, ry);
 							lineprof2D[k][j] = Float.intBitsToFloat(rgbPixel&0xffffff);
 					 } else
@@ -591,6 +643,68 @@ public class KymoResliceWide_ implements PlugIn
 
 		
 	}
+	float [] getFreeHandProfileWide(ImageProcessor ip)
+	{
+		
+		//if (x==null)
+//			doIrregularSetup(roi);
+		length = (float)ip.getWidth();
+		float[] values = new float[(int)length];
+		int widthline = Math.round(fStrokeWidth);	
+		
+		//new ImagePlus("zzz", ip2.duplicate()).show();
+		if(nKymoType == 1)
+		 {
+			 for(int k = 0; k<(int)length;k++)
+			 {
+				 values[k]=0;
+				 for(int j=0;j<widthline;j++)
+				 {
+					 if (rgb) {
+							int rgbPixel = ((ColorProcessor)ip).getInterpolatedRGBPixel(k, j);
+							values[k]+= Float.intBitsToFloat(rgbPixel&0xffffff);
+					 } else
+						 values[k]+= (float)ip.getInterpolatedValue(k, j);					 
+						 
+				 }
+				 values[k]/=(float)widthline;
+			 }
+		 } 
+		 //maximum intensity
+		 else
+		 {
+			 float currMax;
+			 float currVal;
+			 for(int k = 0; k<(int)length;k++)
+			 {
+				 
+				 if (rgb) {
+						int rgbPixel = ((ColorProcessor)ip).getInterpolatedRGBPixel(k, 0);
+						currMax = Float.intBitsToFloat(rgbPixel&0xffffff);
+				 } else
+					 currMax = (float)ip.getInterpolatedValue(k, 0);					 
+					 
+				 
+				 
+				 for(int j=1;j<widthline;j++)
+				 {
+					
+					 if (rgb) {
+							int rgbPixel = ((ColorProcessor)ip).getInterpolatedRGBPixel(k, j);
+							currVal = Float.intBitsToFloat(rgbPixel&0xffffff);
+					 } else
+						 currVal = (float)ip.getInterpolatedValue(k, j);						 						 
+					 if(currVal>currMax)
+						 currMax=currVal;
+				 }
+				 values[k]=currMax;
+			 }
+			 
+		 }
+						
+		return values;
+		
+	}
 	
 	
 	public void putRow(ImageProcessor ip, int x, int y, float[] data, int length) {
@@ -603,16 +717,6 @@ public class KymoResliceWide_ implements PlugIn
 		 }
 	}
 	
-	public void putColumn(ImageProcessor ip, int x, int y, float[] data, int length) {
-		 if (rgb) {
-				for (int i=0; i<length; i++)
-					ip.putPixel(x, y++, Float.floatToIntBits(data[i]));
-		 } else {
-				for (int i=0; i<length; i++)
-					ip.putPixelValue(x, y++, data[i]);
-		 }
-	}
-		
 	
 	ImageStack createOutputStack(ImagePlus imp, ImageProcessor ip) {
 		 int bitDepth = imp.getBitDepth();
