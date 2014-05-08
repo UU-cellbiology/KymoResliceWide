@@ -26,13 +26,13 @@ import ij.Prefs;
 
 public class KymoResliceWide_ implements PlugIn 
 {
-	private static String version = "ver.0.2";
+	private static String version = "ver.0.3";
 	private ImagePlus imp;	
 	private static boolean rotate;	
 	private static final String[] reslicetype = {"Maximum", "Average",};
 	private static int nKymoType;
 	private boolean rgb;
-	private boolean noRoi, notFloat;
+	private boolean noRoi;
 	private int outputSlices = 1;
 	private double inputZSpacing = 1.0;
 	private double outputZSpacing = 1.0;
@@ -58,6 +58,12 @@ public class KymoResliceWide_ implements PlugIn
 	public void run(String arg)
 	{
 		
+		if (IJ.versionLessThan("1.44e"))
+		{
+		    IJ.error("ImageJ version later than 1.44e is required, sorry.");
+		    return;
+			
+		}
 		IJ.register(KymoResliceWide_.class);
 		//just straightforward ImageJ reslicer!!
 		imp = WindowManager.getCurrentImage();
@@ -89,7 +95,7 @@ public class KymoResliceWide_ implements PlugIn
 		long startTime = System.currentTimeMillis();
 		ImagePlus imp2 = null;
 		rgb = imp.getType()==ImagePlus.COLOR_RGB;
-		notFloat = !rgb && imp.getType()!=ImagePlus.GRAY32;
+		
 		if (imp.isHyperStack())
 		{
 //			imp2 = resliceHyperstack(imp);
@@ -208,7 +214,7 @@ public class KymoResliceWide_ implements PlugIn
 		
 		//boolean vertical = x1==x2 && (roi==null||roiType==Roi.RECTANGLE);
 		//if (rotate) vertical = !vertical;
-		 if((roiType==Roi.FREELINE && fStrokeWidth>1)||(roiType==Roi.POLYLINE && ((PolygonRoi)roi).isSplineFit()))
+		 if((roiType==Roi.FREELINE && fStrokeWidth>1)||(roiType==Roi.POLYLINE && ((PolygonRoi)roi).isSplineFit()&& fStrokeWidth>1))
 		 {
 			 if(roiType==Roi.FREELINE && fStrokeWidth>1)
 			 {
