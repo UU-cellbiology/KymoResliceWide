@@ -491,7 +491,7 @@ public class KymoResliceWide_ implements PlugIn
 		gd.addChoice("Intensity value across width:", reslicetype, Prefs.get("KymoResliceWide.Type", "Maximum"));		
 		gd.addCheckbox("Rotate 90 degrees", Prefs.get("KymoResliceWide.rotate", false));
 		gd.addCheckbox("Add ROI to Overlay", Prefs.get("KymoResliceWide.addROI", false));
-		gd.addCheckbox("Ignore calibration", Prefs.get("KymoResliceWide.bCalIgnore", true));
+		gd.addCheckbox("Ignore image calibration", Prefs.get("KymoResliceWide.bCalIgnore", true));
 		gd.showDialog();
 		if (gd.wasCanceled())
             return false;
