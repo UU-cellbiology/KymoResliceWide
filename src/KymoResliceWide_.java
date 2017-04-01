@@ -22,7 +22,7 @@ import ij.*;
 
 public class KymoResliceWide_ implements PlugIn 
 {
-	private static String version = "ver.0.4";
+	private static String version = "ver.0.5";
 	private ImagePlus imp;	
 	private static boolean rotate;	
 	private static final String[] reslicetype = {"Maximum", "Average",};
@@ -34,6 +34,8 @@ public class KymoResliceWide_ implements PlugIn
 	private double outputZSpacing = 1.0;
 	private boolean bAddRoiToOverlay=true;
 	private float fStrokeWidth;
+	/** whether to ignore calibration or not **/
+	private boolean bCalIgnore;
 	Overlay SpotsPositions;
 	
 	
@@ -121,11 +123,14 @@ public class KymoResliceWide_ implements PlugIn
 	
 	
 	ImagePlus resliceHyperstack(ImagePlus imp) {
+		Calibration cal;
 		int channels = imp.getNChannels();
 		int slices = imp.getNSlices();
 		int frames = imp.getNFrames();
 		if (slices==1)
 			return resliceTimeLapseHyperstack(imp);
+		if (frames==1)
+			return resliceZHyperstack(imp);
 		int c1 = imp.getChannel();
 		int z1 = imp.getSlice();
 		int t1 = imp.getFrame();
@@ -134,15 +139,21 @@ public class KymoResliceWide_ implements PlugIn
 		ImagePlus imp2 = null;
 		ImageStack stack2 = null;
 		Roi roi = imp.getRoi();
-		for (int t=1; t<=frames; t++) {
+		//for (int t=1; t<=frames; t++) {
+		for (int z=1; z<=slices; z++) {
 			for (int c=1; c<=channels; c++) {
 				ImageStack tmp1Stack = new ImageStack(width, height);
-				for (int z=1; z<=slices; z++) {
+				//for (int z=1; z<=slices; z++) {
+				for (int t=1; t<=frames; t++) {
 					imp.setPositionWithoutUpdate(c, z, t);
 					tmp1Stack.addSlice(null, imp.getProcessor());
 				}
 				ImagePlus tmp1 = new ImagePlus("tmp", tmp1Stack);
-				tmp1.setCalibration(imp.getCalibration());
+				//tmp1.setCalibration(imp.getCalibration());
+				//change time scale calibration
+				cal=imp.getCalibration().copy();
+				cal.pixelDepth=cal.frameInterval;
+				tmp1.setCalibration(cal);
 				tmp1.setRoi(roi);
 		
 	            ImagePlus tmp2 = null;
@@ -151,20 +162,22 @@ public class KymoResliceWide_ implements PlugIn
 	            else
 	            	tmp2 = reslice(tmp1);
 				
-				int slices2 = tmp2.getStackSize();
+				//int slices2 = tmp2.getStackSize();
+	            int frames2 = tmp2.getStackSize();
 				if (imp2==null) 
 				{
 	            	if(nKymoType == 1)
-	            		imp2 = tmp2.createHyperStack("Reslice (AVRG) of "+imp.getTitle(), channels, slices2, frames, tmp2.getBitDepth());
+	            		imp2 = tmp2.createHyperStack("Reslice (AVRG) of "+imp.getTitle(), channels, slices, frames2, tmp2.getBitDepth());
 	            	else
-	            		imp2 = tmp2.createHyperStack("Reslice (MAX) of "+imp.getTitle(), channels, slices2, frames, tmp2.getBitDepth());
+	            		imp2 = tmp2.createHyperStack("Reslice (MAX) of "+imp.getTitle(), channels, slices, frames2, tmp2.getBitDepth());
 					stack2 = imp2.getStack();
 				}
 				ImageStack tmp2Stack = tmp2.getStack();
-				for (int z=1; z<=slices2; z++) {
+				//for (int z=1; z<=slices2; z++) {
+				for (int t=1; t<=frames2; t++) {
 					imp.setPositionWithoutUpdate(c, z, t);
 					int n2 = imp2.getStackIndex(c, z, t);
-					stack2.setPixels(tmp2Stack.getPixels(z), n2);
+					stack2.setPixels(tmp2Stack.getPixels(t), n2);
 				}
 			}
 		}
@@ -184,6 +197,7 @@ public class KymoResliceWide_ implements PlugIn
 		int t1 = imp.getFrame();
 		int width = imp.getWidth();
 		int height = imp.getHeight();
+		Calibration cal;
 		ImagePlus imp2 = null;
 		ImageStack stack2 = null;
 		Roi roi = imp.getRoi();
@@ -195,7 +209,10 @@ public class KymoResliceWide_ implements PlugIn
 				tmp1Stack.addSlice(null, imp.getProcessor());
 			}
 			ImagePlus tmp1 = new ImagePlus("tmp", tmp1Stack);
-			tmp1.setCalibration(imp.getCalibration());
+			cal=imp.getCalibration().copy();
+			cal.pixelDepth=cal.frameInterval;
+			tmp1.setCalibration(cal);
+			//tmp1.setCalibration(imp.getCalibration());
 			tmp1.setRoi(roi);
             
 			ImagePlus tmp2 = null;
@@ -228,7 +245,57 @@ public class KymoResliceWide_ implements PlugIn
 		return imp2;
 	}
 
-	
+	ImagePlus resliceZHyperstack(ImagePlus imp) {
+		int channels = imp.getNChannels();
+		int slices = imp.getNSlices();
+		int c1 = imp.getChannel();
+		int z1 = imp.getSlice();
+		int width = imp.getWidth();
+		int height = imp.getHeight();
+		
+		ImagePlus imp2 = null;
+		ImageStack stack2 = null;
+		Roi roi = imp.getRoi();
+		int t = 1;
+		for (int c=1; c<=channels; c++) {
+			ImageStack tmp1Stack = new ImageStack(width, height);
+			for (int z=1; z<=slices; z++) {
+				imp.setPositionWithoutUpdate(c, z, t);
+				tmp1Stack.addSlice(null, imp.getProcessor());
+			}
+			ImagePlus tmp1 = new ImagePlus("tmp", tmp1Stack);
+			tmp1.setCalibration(imp.getCalibration());
+			tmp1.setRoi(roi);
+            
+			ImagePlus tmp2 = null;
+            if(rgb)
+            	tmp2 = resliceRGB(tmp1);
+            else
+            	tmp2 = reslice(tmp1);
+			
+			
+			int slices2 = tmp2.getStackSize();
+			if (imp2==null) {
+				if(nKymoType == 1)
+					imp2 = tmp2.createHyperStack("Reslice (AVRG) of "+imp.getTitle(), channels, slices2, 1, tmp2.getBitDepth());
+				else
+					imp2 = tmp2.createHyperStack("Reslice (MAX) of "+imp.getTitle(), channels, slices2, 1, tmp2.getBitDepth());
+				stack2 = imp2.getStack();
+			}
+			ImageStack tmp2Stack = tmp2.getStack();
+			for (int z=1; z<=slices2; z++) {
+				imp.setPositionWithoutUpdate(c, z, t);
+				int n2 = imp2.getStackIndex(c, z, t);
+				stack2.setPixels(tmp2Stack.getPixels(t), n2);
+			}
+		}
+		imp.setPosition(c1, z1, 1);
+		if (channels>1 && imp.isComposite()) {
+			imp2 = new CompositeImage(imp2, ((CompositeImage)imp).getMode());
+			((CompositeImage)imp2).copyLuts(imp);
+		}
+		return imp2;
+	}
 	//split RGB image to three components,
 	//reslice them independently and join together	
 	public ImagePlus resliceRGB(ImagePlus imp)	
@@ -392,8 +459,7 @@ public class KymoResliceWide_ implements PlugIn
 					 line = getLine(ip);
 				 else if	(roiType==Roi.POLYLINE || (roiType==Roi.FREELINE && fStrokeWidth<=1))					
 				  	 line = getIrregularProfileWide(ip);
-			//	 else
-				//	 line = getFreeHandProfileWide(ip);
+
 		
 				 if (i==0) ip2 = ip.createProcessor(line.length, stackSize);
 						putRow(ip2, 0, i, line, line.length);
@@ -425,6 +491,7 @@ public class KymoResliceWide_ implements PlugIn
 		gd.addChoice("Intensity value across width:", reslicetype, Prefs.get("KymoResliceWide.Type", "Maximum"));		
 		gd.addCheckbox("Rotate 90 degrees", Prefs.get("KymoResliceWide.rotate", false));
 		gd.addCheckbox("Add ROI to Overlay", Prefs.get("KymoResliceWide.addROI", false));
+		gd.addCheckbox("Ignore calibration", Prefs.get("KymoResliceWide.bCalIgnore", true));
 		gd.showDialog();
 		if (gd.wasCanceled())
             return false;
@@ -434,6 +501,8 @@ public class KymoResliceWide_ implements PlugIn
 		Prefs.set("KymoResliceWide.rotate", rotate);
 		bAddRoiToOverlay = gd.getNextBoolean();
 		Prefs.set("KymoResliceWide.addROI", bAddRoiToOverlay);
+		bCalIgnore = gd.getNextBoolean();
+		Prefs.set("KymoResliceWide.bCalIgnore", bCalIgnore);
 		return true;
 	}
 	
