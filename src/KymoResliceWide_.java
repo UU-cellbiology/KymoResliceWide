@@ -111,6 +111,9 @@ public class KymoResliceWide_ implements PlugIn
 		double min = ip.getMin();
 		double max = ip.getMax();
 		if (!rgb) imp2.getProcessor().setMinAndMax(min, max);
+		//remove calibration
+		if(bCalIgnore)
+			imp2.setCalibration(new Calibration());
 		imp2.show();
 		if (noRoi)
 			imp.deleteRoi();
