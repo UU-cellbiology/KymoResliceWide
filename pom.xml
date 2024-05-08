@@ -10,7 +10,7 @@
 	</parent>
 
 	<groupId>nl.uu.science.cellbiology</groupId>
-	<artifactId>kymoreslicewide</artifactId>
+	<artifactId>KymoResliceWide</artifactId>
 	<version>0.6.0</version>
 
 	<name>KymoResliceWide</name>                                                  
