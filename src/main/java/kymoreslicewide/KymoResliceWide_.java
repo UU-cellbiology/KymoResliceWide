@@ -156,7 +156,7 @@ public class KymoResliceWide_ implements PlugIn
 		Prefs.set("KymoResliceWide.Type", reslicetype[nKymoType]);
 
 		nSubtractType = gd.getNextChoiceIndex();
-		Prefs.set("KymoResliceWide.SubtractType", subtracttype[nKymoType]);
+		Prefs.set("KymoResliceWide.SubtractType", subtracttype[nSubtractType]);
 
 		rotate = gd.getNextBoolean();
 		Prefs.set("KymoResliceWide.rotate", rotate);
