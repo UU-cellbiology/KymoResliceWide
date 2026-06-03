@@ -11,7 +11,7 @@
 
 	<groupId>nl.uu.science.cellbiology</groupId>
 	<artifactId>KymoResliceWide_</artifactId>
-	<version>0.7.0-SNAPSHOT</version>
+	<version>0.7.0</version>
 
 	<name>KymoResliceWide</name>                                                  
 	<description>ImageJ plugin making kymographs of maximum or average intensity with wide lines, polylines or curves</description> 
