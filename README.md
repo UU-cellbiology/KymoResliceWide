@@ -11,7 +11,10 @@ Main topics:
 * [How to use plugin (Text Tutorial)](https://github.com/ekatrukha/KymoResliceWide/wiki/How-to-use-plugin-%28Text-Tutorial%29)
 * [How to cite plugin?](https://github.com/ekatrukha/KymoResliceWide/wiki/How-to-cite-plugin%3F)
 * [Why another kymograph plugin?](http://katpyxa.info/feedbacks/?p=26)
-<br />
-<br />
+
+
+
+----------
+
 Developed in <a href='http://cellbiology.science.uu.nl/'>Cell Biology group</a> of Utrecht University.  
-<a href="mailto:katpyxa@gmail.com">E-mail</a> for any questions.
+<a href="mailto:katpyxa@gmail.com">E-mail</a> for any questions or tag <a href="https://forum.image.sc/u/ekatrukha/summary">@ekatrukha</a> at <a href="https://forum.image.sc/">image.sc</a> forum.  
